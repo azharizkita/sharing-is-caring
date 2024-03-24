@@ -1,0 +1,15 @@
+{
+	"type": "module",
+	"dependencies": {
+		"chalk": "^4.1.2",
+		"listr": "^0.14.3",
+		"log-update": "^6.0.0"
+	},
+	"scripts": {
+		"start": "ts-node index.ts"
+	},
+	"devDependencies": {
+		"@types/listr": "^0.14.9",
+		"@types/node": "^20.11.30"
+	}
+}
