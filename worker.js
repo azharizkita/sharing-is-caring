@@ -8,7 +8,7 @@ pythonInstance.stdin.setDefaultEncoding("utf8");
 pythonInstance.on("spawn", () => parentPort.postMessage("instance_ready"));
 pythonInstance.stdout.on("data", (message) => {
   const payload = {
-    message: message.toString(),
+    result: message.toString(),
     duration: `${Date.now() - timestamp}ms`,
   };
   parentPort.postMessage(payload);

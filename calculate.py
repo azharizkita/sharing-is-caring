@@ -18,7 +18,7 @@ if __name__ == "__main__":
         try:
             input_data = str(input())
             result = calculate(int(input_data))
-            print(result)
+            print(f"{result:,}")
         except EOFError as e:
             break
         except Exception as e:
