@@ -2,11 +2,12 @@
 	"type": "module",
 	"dependencies": {
 		"chalk": "^4.1.2",
-		"listr": "^0.14.3",
+		"listr2": "^8.0.2",
 		"lodash": "^4.17.21"
 	},
 	"scripts": {
-		"start": "ts-node index.ts"
+		"start": "node index.js",
+		"test": "node test.js"
 	},
 	"devDependencies": {
 		"@types/listr": "^0.14.9",

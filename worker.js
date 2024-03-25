@@ -15,7 +15,7 @@ pythonInstance.stdout.on("data", (message) => {
 });
 pythonInstance.stderr.on("error", (message) => {
   const payload = {
-    message: message.toString(),
+    result: message.toString(),
     duration: `${Date.now() - timestamp}ms`,
   };
   parentPort.postMessage(payload);

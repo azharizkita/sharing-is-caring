@@ -1,36 +1,109 @@
-import Listr from 'listr'
-import chalk from 'chalk';
-import _ from 'lodash'
+import http from "node:http";
+import { availableParallelism } from "node:os";
+import { URL } from "node:url";
+import { Worker } from 'node:worker_threads'
+import { assignToAvailableWorker, getWorkerLabel } from "./utils.js";
 
-const getFibonacciTask = (num) => {
-  const label = `Fibonacci of ${chalk.cyan(num)}`
-  return {
-    title: label,
-    task: async (_, task) => {
-      const requestUrl = `http://localhost:3000/fib?num=${num}`
-      try {
-        const response = await fetch(requestUrl)
+const port = 3000;
+const workerPath = './worker.js'
+const server = http.createServer();
+const cpuCount = availableParallelism()
 
-        const { result } = await response.json()
-        task.title = `${label} ${chalk.gray(`-> ${result}`)}`
-      } catch (error) {
-        task.title = String(error)
-        console.error(error)
-      }
+const workerPointers = []
+const workerStates = {}
+const results = {}
+const workers = {}
 
+const workerStateProcessor = (name = '', newState = {}) => {
+  if (!workerStates[name]) {
+    workerStates[name] = {
+      status: 'idle',
+      process_count: 0,
+      duration: 0,
     }
+    return
+  }
+  workerStates[name] = {
+    ...workerStates[name],
+    ...newState
   }
 }
 
-const fibonaccis = Array.from(Array(42).keys())
-const chunckedTasksPlaceholder = _.chunk(fibonaccis, 10)
-const chunkedTasks = chunckedTasksPlaceholder.map((_chunks, i) => {
-  return {
-    title: `Task chunk - ${i + 1}`,
-    task: async () => new Listr(_chunks.map((num) => getFibonacciTask(num + 1)), { concurrent: true }),
+const getCachedResult = (num) => {
+  return new Promise((resolve) => {
+    const interval = setInterval(() => {
+      if (!results[num] || results[num].is_error || isNaN(results[num].result ?? null)) return resolve(null)
+      clearInterval(interval)
+      resolve(results[num])
+    }, 150);
+  })
+}
+
+for (let index = 0; index < cpuCount; index++) {
+  const workerName = getWorkerLabel(index + 1)
+  workerPointers.push(workerName)
+  const worker = new Worker(workerPath);
+  worker.on('message', (_data) => {
+    if (_data === 'instance_ready') {
+      workerStateProcessor(workerName)
+      return
+    }
+    workerStateProcessor(workerName, {
+      duration: _data.duration
+    })
+    const _result = _data.result.split('|')
+    results[_result[1]] = {
+      is_error: _result[0] === 'e',
+      result: _result[2]
+    }
+  });
+  workers[workerName] = worker
+}
+
+server.on("request", async (req, res) => {
+  const _url = new URL(req.url, "http://localhsot:3000");
+  if (_url.href.includes("/fib")) {
+    const num = _url.searchParams.get("num");
+    const chunk = _url.searchParams.get("chunk");
+    if (isNaN(num)) return res.end(JSON.stringify({ result: "include a number with /fib?num=x", is_error: true }));
+    const isInitated = results[num]
+    const shouldCalculate = isInitated && isNaN(results[num].result)
+
+    if (!shouldCalculate) {
+      const cachedResult = await getCachedResult(num)
+      if (cachedResult) return res.end(JSON.stringify(cachedResult))
+    }
+
+    const _workerName = await assignToAvailableWorker(cpuCount, workerPointers, workerStates, (workerName) => {
+      results[num] = {
+        is_error: false,
+        result: 'calculating'
+      }
+      workerStateProcessor(workerName, {
+        status: 'busy',
+        process_count: workerStates[workerName].process_count + 1,
+        duration: 'calculating'
+      })
+      workers[workerName].postMessage(num)
+    }, chunk)
+
+    const interval = setInterval(() => {
+      if (results[num].result === 'calculating') return
+      clearInterval(interval);
+      workerStateProcessor(_workerName, {
+        status: 'idle',
+      })
+      return res.end(JSON.stringify(results[num]));
+
+    }, 75);
+  } else {
+    res.end("Ok");
   }
-})
+});
 
-const tasks = new Listr(chunkedTasks, { concurrent: true, collapse: false });
+server.listen(port);
 
-tasks.run()
+setInterval(() => {
+  console.clear()
+  console.table(workerStates)
+}, 200)
