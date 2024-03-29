@@ -6,12 +6,14 @@ const thousandFormatter = (result) => String(result).replace(/\B(?=(\d{3})+(?!\d
 
 const arrow = ' ------------>\t'
 
+const resourceBusy = "All workers are busy"
+
 export const getWorkerLabel = (index = 0) => `Worker ${index}`
 
-export const assignToAvailableWorker = (cpuCount = 0, workers = [], state = {}, onAvailable = (index = 0) => { }, chunk) => {
+export const assignToAvailableWorker = ({ cpuCount = 0, workers = [], state = {}, chunk, withQueue, onAvailable = () => { } }) => {
   return new Promise((resolve, reject) => {
     const interval = setInterval(() => {
-      if (chunk) {
+      if (!isNaN(chunk)) {
         const pointer = workers[chunk]
         if (state[pointer].status === "idle") {
           clearInterval(interval);
@@ -19,20 +21,27 @@ export const assignToAvailableWorker = (cpuCount = 0, workers = [], state = {}, 
           resolve(pointer);
           return
         }
+        if (!withQueue) {
+          clearInterval(interval);
+          reject(resourceBusy);
+          return
+        }
         return
       }
       for (let index = 0; index < cpuCount; index++) {
         const pointer = workers[index]
-        if (state[pointer].status === "idle") {
-          clearInterval(interval);
-          onAvailable(pointer);
-          resolve(pointer);
-          return
+        if (state[pointer].status === "busy") {
+          if (!withQueue && index + 1 === cpuCount) {
+            clearInterval(interval);
+            reject(resourceBusy);
+            break
+          }
+          continue
         }
-
-        // if (index + 1 === totalWorker) {
-        //   reject("none");
-        // }
+        clearInterval(interval);
+        onAvailable(pointer);
+        resolve(pointer);
+        break
       }
     }, 150);
   });
@@ -97,7 +106,7 @@ export const getTasks = (type) => {
       return chunkedTasks.map((_, i) => ({
         title: `Task chunk - ${i + 1}`, title: `Task chunk - ${i + 1}`,
         task: async () => {
-          const subTasks = chunkedTasks[i].map((num) => getFibonacciTask(num, i))
+          const subTasks = chunkedTasks[i].map((num) => getFibonacciTask(num))
           return new Listr(subTasks, { concurrent: true, exitOnError: false, rendererOptions: { collapseSubtasks: false } });
 
         }
