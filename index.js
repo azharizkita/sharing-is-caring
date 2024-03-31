@@ -1,19 +1,20 @@
 import http from "node:http";
 import { availableParallelism } from "node:os";
 import { URL } from "node:url";
-import { Worker } from 'node:worker_threads'
-import { assignToAvailableWorker, getWorkerLabel } from "./utils.js";
+import { Worker, SHARE_ENV } from 'node:worker_threads'
+import { assignToAvailableWorker, getWorkerLabel, setSharedResult } from "./utils.js";
+
+// behavior configs
+const withQueue = true
+const withParallelism = true
+const sharedCachedResults = true
+const withCachedResults = true
 
 // server configs
 const port = 3000;
 const workerPath = './worker.js'
 const server = http.createServer();
-const cpuCount = availableParallelism()
-
-// behavior configs
-const withCachedResults = true
-const sharedCachedResults = false
-const withQueue = true
+const cpuCount = withParallelism ? availableParallelism() : 1
 
 // data pools
 const workerPointers = []
@@ -49,7 +50,7 @@ const getCachedResult = (num) => {
 for (let index = 0; index < cpuCount; index++) {
   const workerName = getWorkerLabel(index + 1)
   workerPointers.push(workerName)
-  const worker = new Worker(workerPath);
+  const worker = new Worker(workerPath, { env: SHARE_ENV });
   worker.on('message', (_data) => {
     if (_data === 'instance_ready') {
       workerStateProcessor(workerName)
@@ -59,10 +60,19 @@ for (let index = 0; index < cpuCount; index++) {
       duration: _data.duration
     })
     const _result = _data.result.split('|')
+
+    if (_result[0] === 'e') {
+      results[_result[1]] = {
+        is_error: _result[0] === 'e',
+      }
+      return
+    }
+
     results[_result[1]] = {
-      is_error: _result[0] === 'e',
+      is_error: false,
       result: _result[2]
     }
+
   });
   workers[workerName] = worker
 }
@@ -111,6 +121,9 @@ server.on("request", async (req, res) => {
         workerStateProcessor(_workerName, {
           status: 'idle',
         })
+        if (sharedCachedResults) {
+          setSharedResult({ [num]: results[num].result })
+        }
         return res.end(JSON.stringify(results[num]));
 
       }, 75);

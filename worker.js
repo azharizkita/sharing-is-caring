@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 import { parentPort } from "node:worker_threads";
+import { getSharedResult } from "./utils.js";
 
 let timestamp = 0;
 const pythonInstance = spawn("python3", ["./calculate.py"]);
@@ -21,6 +22,7 @@ pythonInstance.stderr.on("error", (message) => {
   parentPort.postMessage(payload);
 });
 parentPort.on("message", (input) => {
+  const sharedResults = getSharedResult({ parsed: false })
   timestamp = Date.now();
-  pythonInstance.stdin.write(`${input}\n`);
+  pythonInstance.stdin.write(`${input}|${sharedResults}\n`);
 });

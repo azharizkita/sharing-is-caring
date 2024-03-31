@@ -1,7 +1,11 @@
 import sys
 import time
+import json
 
-def calculate(n):
+def calculate(n, cache):
+    if str(n) in cache:
+        return int(cache[str(n)])
+
     if n < 0:
         return 0
  
@@ -12,13 +16,16 @@ def calculate(n):
         return 1
  
     else:
-        return calculate(n-1) + calculate(n-2)
+        return calculate(n-1, cache) + calculate(n-2, cache)
 
 if __name__ == "__main__":
     while True:
         try:
-            input_data = str(input()).rstrip()
-            result = calculate(int(input_data))
+            _input = str(input()).rstrip()
+            inputs = _input.split('|')
+            input_data = inputs[0]
+            cache = json.loads(inputs[1])
+            result = calculate(int(input_data), cache)
             sys.stdout.write(f"r|{int(input_data)}|{result}")
             sys.stdout.flush()
             # thortle 0.01s to avoid buffer interference

@@ -8,6 +8,25 @@ const arrow = ' ------------>\t'
 
 const resourceBusy = "All workers are busy"
 
+export const getSharedResult = ({ parsed } = { parsed: true }) => {
+  const sharedResult = process.env.SHARED_RESULT;
+
+  if (!sharedResult) {
+    return parsed ? {} : JSON.stringify({});
+  }
+
+  return parsed ? JSON.parse(sharedResult) : sharedResult;
+};
+
+
+export const setSharedResult = (newResult = {}) => {
+  const currentSharedResult = getSharedResult()
+  process.env.SHARED_RESULT = JSON.stringify({
+    ...currentSharedResult,
+    ...newResult
+  })
+}
+
 export const getWorkerLabel = (index = 0) => `Worker ${index}`
 
 export const assignToAvailableWorker = ({ cpuCount = 0, workers = [], state = {}, chunk, withQueue, onAvailable = () => { } }) => {
@@ -77,10 +96,10 @@ const getFibonacciTask = (num, chunk = null) => {
 
 /**
  * 
- * @param {'chunked' | 'normalized-chunk' | 'normal'} type 
+ * @param {'chunked' | 'normalized-chunk' | 'normal' | 'single'} type 
  */
-export const getTasks = (type) => {
-  const fibonaccis = Array.from(Array(42).keys()).map(num => num + 1);
+export const getTasks = (type, value = 42) => {
+  const fibonaccis = Array.from(Array(value).keys()).map(num => num + 1);
   const chunkSize = 7;
 
   switch (type) {
@@ -112,6 +131,10 @@ export const getTasks = (type) => {
         }
       }))
     }
+    case 'single': {
+      return getFibonacciTask(value)
+    }
+
     default: {
       return fibonaccis.map(num => getFibonacciTask(num));
     }
